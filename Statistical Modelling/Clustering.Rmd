@@ -1,0 +1,107 @@
+---
+title: "Sparklr"
+author: "Kamau Kamau"
+date: "30/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message =FALSE,warning = FALSE)
+```
+
+# Setting u the sparklyr
+
+```{r}
+library(sparklyr)
+#spark_install()
+sc <- spark_connect(master = "local")
+library(nycflights13)
+flights_tbl <- copy_to(sc, nycflights13::flights, "flights")
+src_tbls(sc)
+```
+
+# All the dplr functions are still available
+
+```{r}
+flights_tbl %>% filter(year == 2013)
+flights_tbl %>% 
+  group_by(origin) %>% 
+  summarise(mean_delay = mean(dep_delay))
+```
+ 
+ # Even GGPLOT is available
+```{r}
+delay <- flights_tbl %>% 
+  group_by(tailnum) %>%
+  summarise(count = n(), dist = mean(distance), delay = mean(arr_delay)) %>%
+  filter(count > 20, dist < 2000, !is.na(delay)) %>% 
+  collect
+ggplot(delay, aes(dist, delay)) +
+  geom_point(aes(size = count), alpha = 1/2) +
+  geom_smooth() +
+  scale_size_area(max_size = 2)
+```
+ 
+ # to create true or false variables in sparklyr (use Featur transform function FT_)
+ # sparklyr works well on numeric variable - for the rest use  FT
+ 
+```{r}
+flights_tbl %>% 
+  ft_binarizer("distance", "long_flight", threshold = 1500) %>% #if a flight > 1500 ( long)
+  select(distance, long_flight)
+# we can drag ths ti R and use the  normal functions to convert to "long or "short"
+flights_tbl %>% 
+  ft_binarizer("distance", "long_flight", threshold = 1500) %>% 
+  select(distance, long_flight) %>% 
+  collect() %>% 
+  mutate(long_flight2 = ifelse(long_flight == 0, "short", "long"))
+```
+ 
+# for more levels you use the bucketizer
+
+```{r}
+flights_tbl %>% 
+  ft_bucketizer("distance", "distance_cat", 
+                splits = c(0,500, 1500, Inf)) %>% 
+  select(distance, distance_cat)
+```
+
+# PCA in sparklyr
+```{r}
+iris_tbl <- copy_to(sc, iris, "iris", overwrite = TRUE)
+pca_model <- tbl(sc, "iris") %>%
+  select(-Species) %>% na.omit() %>%
+  ml_pca()
+print(pca_model)
+
+D <- as.matrix(iris[1:4])
+E <- as.matrix(pca_model$pc)
+P <-  D %*% E
+
+PCs <- as.data.frame(P)
+PCs$Species <- iris$Species
+ggplot(PCs,aes(PC1,PC2)) + geom_point(aes(colour = Species))
+```
+```{r}
+# KMeans Clustering
+kmeans_model <- iris_tbl %>%
+  ml_kmeans(formula= ~ Petal_Width + Petal_Length, k = 3)
+print(kmeans_model)
+
+# plot cluster membership
+ml_predict(kmeans_model) %>%
+  collect() %>%
+  ggplot(aes(Petal_Length, Petal_Width)) +
+  geom_point(aes(Petal_Width, Petal_Length, col = factor(prediction+1)),
+             size = 2, alpha = 0.5) + 
+  geom_point(data = kmeans_model$centers, aes(Petal_Width, Petal_Length),
+             pch = 'x', size = 12) +
+  scale_color_discrete(name = "Predicted cluster")
+```
+
+# disconect the spark
+
+```{r}
+spark_disconnect(sc)
+```
+

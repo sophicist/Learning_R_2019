@@ -1,0 +1,51 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message = FALSE,warning = FALSE)
+```
+
+```{r}
+library(gapminder)
+x <- gapminder
+head(x)
+Africa <- x %>% filter(continent == "Africa")
+nest_A = gapminder %>% group_by(country) %>% nest()
+fun <-function(df){
+  lm(gdpPercap ~ pop,data = df)
+  
+}
+
+#map(nest_A$data,fun)
+```
+
+```{r}
+# nest the dataframes such that each country has its own dataset subset
+gapminder.nested  <- gapminder %>% 
+  group_by(country, continent) %>% 
+  nest()
+gapminder.nested
+# how to get the nested data
+gapminder.nested$data[3]
+# create a function for paralell model creation
+country_model <- function(df) {
+  lm(lifeExp ~ year, data = df)
+}
+gapminder.model  <- nest_A %>% 
+  mutate(model = map(data, fun), 
+         coef = map(model, broom::tidy))
+gapminder.model$coef[[1]]
+# unnest the dataframe
+gapminder.coef  <- gapminder.model %>% unnest(coef)
+gapminder.coef
+
+```
+```{r}
+model_null <- lm(pop~1,data = gapminder)
+model_upper<- lm(pop~.,data = gapminder)
+step(model_null,scope = list(upper =model_upper ),direction = 'forward')
+```
+
+

@@ -1,0 +1,31 @@
+---
+title: "ML in H20"
+author: "Kamau Kamau"
+date: "11/11/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Intialize the H2o Module
+
+```{r}
+library(h2o)
+h2o.init()
+```
+
+```{r}
+iris.hex <- as.h2o(iris)
+iris.dl <- h2o.deeplearning(x = 1:4, y = 5, training_frame = iris.hex)
+iris.dl
+```
+
+# Predict using the model
+
+```{r}
+# now make a prediction
+predictions <- h2o.predict(iris.dl, iris.hex)
+```
+

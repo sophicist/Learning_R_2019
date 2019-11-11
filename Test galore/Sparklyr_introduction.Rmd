@@ -1,0 +1,28 @@
+---
+title: "Sparklyr"
+author: "Kamau Kamau"
+date: "22/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(sparklyr)
+library(tidyverse)
+spark_install()
+sc<-spark_connect('local')
+my_tbl<-copy_to(sc,iris,overwrite = TRUE )
+
+my_tbl %>% filter(Petal_Width<0.3) %>% mutate(H = Petal_Length*Petal_Width) %>% arrange(desc(H)) %>% ggplot(aes(x =H))+geom_histogram()
+  
+```
+```{r}
+#connect spark to a cluster
+#spark_connect("spark://spark.company.org:7077")
+```
+
+

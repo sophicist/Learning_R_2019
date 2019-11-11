@@ -1,0 +1,158 @@
+---
+title: "Data Anlysis on the Sendy"
+author: "Kamau Kamau"
+date: "31/10/2019"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message =FALSE,warning = FALSE)
+```
+
+```{r}
+library(readxl)
+df <- read_csv("competitions/Rider_xendy/Train.csv")
+head(Train)
+dim(df)
+names(df)
+```
+
+```{r}
+library(janitor)
+library(tidyr)
+
+df<- df %>% clean_names()
+names(df)[1:3]
+x<- df %>% group_by(placement_weekday_mo_1) %>% nest()
+y<- function(df){lm(time_from_pickup_to_arrival~distance_km+placement_weekday_mo_1,data = df)}
+#mod <- df %>% map(y,x$data)
+train <- df[1:(21201*.75),]
+test <- df[(21201*.75):21201,]
+model <- lm(time_from_pickup_to_arrival~distance_km+placement_weekday_mo_1,data = train)
+p <- test %>% dplyr::select(distance_km,placement_weekday_mo_1)
+modelr::rmse(model,test)
+```
+
+# stepwise Regresion
+
+```{r}
+train <- train %>% dplyr::select(time_from_pickup_to_arrival,personal_or_business,placement_day_of_month,
+                                 placement_weekday_mo_1,confirmation_day_of_month,confirmation_weekday_mo_1,distance_km,temperature,precipitation_in_millimeters,pickup_lat,pickup_long,destination_lat,destination_long)
+train[is.na(train)]<-0
+lm_null <- lm(time_from_pickup_to_arrival~1,data = train)
+AIC(lm_null)
+step(lm_null,scope  = list(upper = lm(time_from_pickup_to_arrival~.,data = train)),direction = "forward")
+
+lm_full <- lm(time_from_pickup_to_arrival~.,data = train)
+AIC(lm_full)
+step(lm_full,scope =list(lower = lm_null),direction = "backward")
+
+lm_mid <- lm(time_from_pickup_to_arrival~distance_km,data = train)
+AIC(lm_mid)
+step(lm_mid,scope =list(lower = lm_null,upper = lm_full),direction = "both")
+```
+
+```{r}
+mod <- lm(formula = time_from_pickup_to_arrival ~ distance_km + pickup_long + 
+    temperature + destination_lat + personal_or_business + pickup_lat, 
+    data = train) # forward model
+modelr::rmse(mod,test)
+
+mod1 <- lm(formula = time_from_pickup_to_arrival ~ personal_or_business + 
+    distance_km + temperature + pickup_lat + pickup_long + destination_lat, 
+    data = train)
+modelr::rmse(mod1,test)
+mod2 <- lm(formula = time_from_pickup_to_arrival ~ distance_km + pickup_long + 
+    temperature + destination_lat + personal_or_business + pickup_lat, 
+    data = train)
+modelr::rmse(mod2,test)
+```
+
+# cross Validation
+
+```{r}
+dt <- df %>% dplyr::select(time_from_pickup_to_arrival,personal_or_business,placement_day_of_month,
+                                 placement_weekday_mo_1,confirmation_day_of_month,confirmation_weekday_mo_1,distance_km,temperature,precipitation_in_millimeters,pickup_lat,pickup_long,destination_lat,destination_long)
+cv <- crossv_kfold(dt,k =10)
+
+pred <- map(cv$train,~lm(formula = time_from_pickup_to_arrival ~ distance_km + pickup_long + 
+    temperature + destination_lat + personal_or_business + pickup_lat, 
+    data = .))
+matuu <- function(model,test){
+  test<- data.frame(test)
+  pred = add_predictions(test,model)
+  return(pred)
+}
+obj <- map2_df(pred,cv$test,matuu,.id = "Kamau")
+obj %>% dplyr::select(Kamau,time_from_pickup_to_arrival,pred) %>% filter(!is.na(pred))%>% mutate(MSE = (time_from_pickup_to_arrival-pred)^2) %>% group_by(Kamau) %>% summarise(Y = mean(MSE)) %>% summarise(mean(Y)^0.5)
+
+```
+
+# Cross Valid
+
+```{r}
+
+```
+
+# Exp 1
+
+```{r}
+df <- gapminder[-c(1:100),]
+sample <- sample.int(n = nrow(df), size = floor(.65*nrow(df)), replace = F)
+train <- df[sample, ]
+test  <- df[-sample, ]
+valid<- df[c(1:100),]
+
+forward = lm(lifeExp~1,data = train)
+full <- lm(lifeExp~.,data = train)
+#step(forward,scope  = list(upper = lm(lifeExp~.,data = train)),direction = "forward")
+model <- lm(formula = lifeExp ~ country + year + pop + gdpPercap, data = train)
+library(modelr)
+mae(model,valid)
+```
+
+```{r}
+test$Prediction <- predict(model,test)
+test$MAE <- test$lifeExp - test$Prediction
+head(test)
+model2 <- lm(formula = MAE ~ country + year + pop + gdpPercap, data = test)
+
+# Test
+valid$Prediction <- predict(model,valid)
+valid$MAE <- predict(model2,valid)
+head(valid)
+print(mae(model,valid))
+head(valid)
+valid$Prediction_adjusted <- valid$Prediction + valid$MAE
+valid$MAE_adjust <- ((valid$lifeExp - valid$Prediction_adjusted)^2)^0.5
+head(valid)
+```
+
+# Titanic
+
+```{r}
+head(iris)
+sample <- sample.int(n = nrow(iris), size = floor(.5*nrow(iris)), replace = F)
+train <- iris[sample, ]
+test  <- iris[-sample, ]
+sample <- sample.int(n = nrow(test), size = floor(.5*nrow(test)), replace = F)
+test <- test[sample,]
+valid<- test[-sample,]
+model <- lm(Sepal.Length~Sepal.Width+Petal.Length+Petal.Width+Species,data = train)
+mae(model,valid) :0.3255
+```
+
+```{r}
+test$pred <- predict(model,test)
+test$MAE <- test$Sepal.Length - test$pred 
+head(test)
+
+model1<- lm(MAE~Sepal.Width+Petal.Length+Petal.Width+Species,data = test)
+valid$pred <- predict(model,valid)
+valid$MAE <- predict(model1,valid)
+valid$predict_adjust <- valid$pred +valid$MAE
+head(valid)
+valid$MAE_adjust <- ((valid$Sepal.Length - valid$predict_adjust)^2)^0.5
+mean(valid$MAE_adjust)
+```
+

@@ -1,0 +1,124 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message = FALSE,warning = FALSE)
+```
+
+# PCA  Analysis
+
+```{r}
+library(sparklyr)
+sc <- spark_connect(master = "local")
+iris_tbl <- copy_to(sc, iris, "iris", overwrite = TRUE)
+pca_model <- tbl(sc, "iris") %>%
+  select(-Species) %>% na.omit() %>%
+  ml_pca()
+print(pca_model)
+D <- as.matrix(iris[1:4])
+E <- as.matrix(pca_model$pc)
+P <-  D %*% E
+
+PCs <- as.data.frame(P)
+PCs$Species <- iris$Species
+
+ggplot(PCs,aes(PC1,PC2)) + geom_point(aes(colour = Species))
+```
+
+# K-Means Clustering
+
+```{r}
+kmeans_model <- iris_tbl %>%
+  ml_kmeans(formula= ~ Petal_Width + Petal_Length, k = 3)
+print(kmeans_model)
+
+# plot cluster membership
+ml_predict(kmeans_model) %>%
+  collect() %>%
+  ggplot(aes(Petal_Length, Petal_Width)) +
+  geom_point(aes(Petal_Width, Petal_Length, col = factor(prediction+1)),
+             size = 2, alpha = 0.5) + 
+  geom_point(data = kmeans_model$centers, aes(Petal_Width, Petal_Length),
+             pch = 'x', size = 12) +
+  scale_color_discrete(name = "Predicted cluster")
+```
+
+
+# Supervised Learning in Sparklyr
+
+Linear Regression
+-----
+
+```{r}
+mpg_sc <- copy_to(sc,mpg)
+partitions <- mpg_sc %>% sdf_random_split(training = 0.8, test = 0.2)
+model <- partitions$training %>% ml_linear_regression(hwy ~ displ + drv)
+summary(model)
+
+pred <- ml_predict(model, partitions$test) %>% collect
+MSE <- mean((pred$hwy - pred$prediction)^2)
+MSE
+```
+
+Logistic Regression
+-----
+```{r}
+library(titanic)
+#titanic_tbl <- copy_to(sc, titanic::titanic_train, "titanic")
+
+# Clean the dataset
+titanic2_tbl <- titanic_tbl %>% 
+  mutate(Family_Size = SibSp + Parch + 1L) %>% 
+  mutate(Pclass = as.character(Pclass)) %>%
+  filter(!is.na(Embarked)) %>%
+  mutate(Age = if_else(is.na(Age), mean(Age), Age)) %>%
+  sdf_register("titanic2")
+# Final dataset
+titanic_final_tbl <- titanic2_tbl %>%
+  mutate(Family_Size = as.numeric(Family_size)) %>%
+  ft_bucketizer("Family_Size", "Family_Sizes", splits = c(1,2,5,12)) %>%
+  mutate(Family_Sizes = as.character(as.integer(Family_Sizes))) %>%
+  sdf_register("titanic_final")
+# Create train/test partitions
+partition <- titanic_final_tbl %>% 
+  mutate(Survived = as.numeric(Survived), 
+         SibSp = as.numeric(SibSp), 
+         Parch = as.numeric(Parch)) %>%
+  select(Survived, Pclass, Sex, Age, SibSp, Parch, Fare, Embarked, Family_Sizes) %>%
+  sdf_random_split(train = 0.75, test = 0.25)
+
+train_tbl <- partition$train
+test_tbl <- partition$test
+# Logistic Regression
+ml_formula <- formula(Survived ~ Pclass + Sex + Age +SibSp + Parch + Fare + Embarked +Family_Sizes)
+
+ml_log <- ml_logistic_regression(train_tbl,ml_formula)
+ml_log
+pred_lr <- ml_predict(ml_log, test_tbl) %>% collect
+pred_lr$p1 <- unlist(pred_lr$probability)[ c(FALSE,TRUE) ]
+ROC_lr <- get_roc(L = pred_lr$Survived, f = pred_lr$p1)
+ggplot(ROC_lr, aes(x = FPR, y = TPR)) + geom_line(aes(col = "LR prediction"))
+```
+# Other Moels
+* ml_random_forest
+* ml_decision_tree
+* ml_gradient_boosted_trees
+* ml_multilayer_perceptron
+* ml_naive_bayes
+
+
+
+```{r}
+ml_rf <- ml_random_forest(train_tbl,ml_formula, type = "classification")
+pred_rf <- sdf_predict(ml_rf, test_tbl) %>% collect
+pred_rf$p1 <- unlist(pred_rf$probability)[ c(FALSE,TRUE) ]
+ROC_rf <- get_roc(L = pred_rf$Survived, f = pred_rf$p1)
+ggplot(ROC_lr, aes(x = FPR, y = TPR)) + geom_line(aes(col = "LR prediction")) + 
+  geom_line(data = ROC_rf, aes(col = "RF prediction"))
+```
+```{r}
+spark_disconnect(sc)
+```
+

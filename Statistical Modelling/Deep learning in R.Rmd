@@ -1,0 +1,48 @@
+---
+title: "Tensorflow and Keras"
+author: "Kamau Kamau"
+date: "11/11/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+install.packages("tensorflow")
+library(tensorflow)
+install_tensorflow()
+#install_tensorflow(version = "gpu") #try this if you know you have NVIDIA GPU!
+library(reticulate) #you might need this in order to have conversions of types when calling tf
+install_tensorflow_extras("keras")
+install.packages("keras")
+library(keras)
+```
+
+
+```{r}
+model_resnet <- application_resnet50(weights = 'imagenet')
+print(model_resnet)
+summary <- capture.output(print(model_resnet))
+head(summary, n=15)
+summary <- capture.output(print(model_resnet))
+tail(summary, n=6)
+
+#mystery <- image_load("./mystery.jpg", target_size = c(224,224))  #use fridge image
+#adjust the path to the image if needed !
+mystery <- image_load("./mystery_D.jpg", target_size = c(224,224)) #use dog image
+#this also resizes to the input size expected by the network
+mystery_array <- image_to_array(mystery) #convert to just an array
+# shape a 4d tensor with single element in the batch dimension,
+dim(mystery_array) <- c(1, dim(mystery_array))
+# then preprocess the input for prediction
+mystery_array <- imagenet_preprocess_input(mystery_array)
+# make predictions then decode and print them
+order(what_is_it,decreasing=T)[1] # the highest ranking object
+order(what_is_it,decreasing=T)[1:10] # the highest ranking 10 objects
+```
+
+```
+

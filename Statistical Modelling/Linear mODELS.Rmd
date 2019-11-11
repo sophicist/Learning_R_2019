@@ -1,0 +1,162 @@
+---
+title: "Statistical Modelling"
+author: "Kamau Kamau"
+date: "22/10/2019"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,message =F,warning  =F)
+```
+
+```{r}
+# library(MASS)
+# head(oldfaithful)
+# df$pred <- -54.461 + 12.016*df$rm
+# 
+# ggplot(df,mapping = aes(y=medv,x=rm)) + 
+#   geom_point() +
+#   geom_abline(intercept = -54.461, slope = 12.016, color = "red") +
+#   geom_linerange(aes(ymin = df$medv, ymax = df$pred), color = "gray")
+```
+
+# Assumptions for the Regression Model
+
+What are the assumptions that we have made using this model?
+
+A straight line was the best way to model the overall relationship between log price and log carat.
+The noise terms  εi  all have the same variance.
+The noise terms  εi  are normally distributed.
+The error terms are independent. (i.i.d. stands for "independent and identically distributed".)
+We have names for each of the assumptions:
+
+* Linearity
+* Constant variance (homoscedasticity)
+* Normality
+* Independence
+
+```{r}
+library(tidyverse)
+data(diamonds)
+head(diamonds)
+diamonds %>% ggplot(aes(carat,price))+geom_point()+scale_y_log10()+scale_x_log10()
+
+diam_lm <-lm(log(price)~log(carat),data =diamonds)
+summary(diam_lm)
+plot(diam_lm,which =1) #line should be roughly flat ** test for linearlity
+```
+
+# Advanced Dummy variables
+
+```{r}
+library(tidyverse)
+AdX_team  <- tribble(
+  ~Person, ~Pet, 
+  "Lewis", "Cat",
+  "Sash", "Cat",
+  "David", "Dog",
+  "Jono", "Rabbit",
+  "Dee", "Rabbit",
+  "Alex", "Dog"
+)
+AdX_team  <- AdX_team %>% mutate(Pet = factor(Pet))
+AdX_team
+library(modelr)
+model_matrix(AdX_team,~Pet)
+
+```
+
+# Additional Data
+```{r}
+data("chickwts")
+chickwts  <- as_tibble(chickwts)
+head(chickwts)
+ggplot(chickwts,aes(feed, weight)) + geom_boxplot()+geom_jitter()
+
+#fit a linear model
+chickwts.lm  <- lm(weight ~ feed, data = chickwts)
+summary(chickwts.lm)
+
+# test if does feed have an effect on mean weight gain of chicks?
+anova(chickwts.lm)
+```
+
+# predicting with mixed variables: both categorial as well as continous
+
+```{r}
+library(mlbench)
+data("BostonHousing2")
+BostonHousing2 <- as_tibble(BostonHousing2)
+BostonHousing2
+#Use just the number of rooms first
+BostonHousing2.lm  <- lm(medv ~ rm, data = BostonHousing2)
+summary(BostonHousing2.lm)
+
+# add the Chas (Charles river factor) where its 1 if the house has a view to the river otherwise 0
+BostonHousing2.lm2  <- lm(medv ~ rm + chas, data = BostonHousing2)
+summary(BostonHousing2.lm2)
+
+# does more rooms equal havng a view?
+ggplot(BostonHousing2,mapping = aes(rm,medv)) + 
+  geom_point(aes(color = chas)) + 
+  geom_smooth(method = 'lm', mapping = aes(color=chas))
+# check this more quantitavely using interaction terms
+summary(lm(medv ~ rm + chas + rm:chas, data = BostonHousing2))
+
+summary(lm(formula = price ~ carat * factor(cut, ordered = FALSE), data = diamonds))# with an interaction term
+```
+
+# stratified Datasets - the Gapminder problem
+“How does life expectancy change over time for each country?”
+
+```{r}
+library(gapminder)
+ggplot(gapminder, aes(year, lifeExp, group = country)) +
+    geom_line(alpha = 0.25)
+# one Country
+au <- filter(gapminder, country == "Australia")
+ggplot(au,aes(year, lifeExp)) + geom_line()
+au.lm <- lm(lifeExp ~ year, data = au)
+summary(au.lm)
+
+
+# nest the dataframes such that each country has its own dataset subset
+gapminder.nested  <- gapminder %>% 
+  group_by(country, continent) %>% 
+  nest()
+gapminder.nested
+# how to get the nested data
+gapminder.nested$data[3]
+# create a function for paralell model creation
+country_model <- function(df) {
+  lm(lifeExp ~ year, data = df)
+}
+gapminder.model  <- gapminder.nested %>% 
+  mutate(model = map(data, country_model), 
+         coef = map(model, broom::tidy))
+gapminder.model$coef[[1]]
+# unnest the dataframe
+gapminder.coef  <- gapminder.model %>% unnest(coef)
+gapminder.coef
+
+
+```
+
+```{r}
+gapminder.coef %>% 
+  mutate(term = fct_recode(term, 
+                           Intercept = "(Intercept)", 
+                           Slope = "year")) %>% 
+  ggplot(aes(estimate, fill = term)) + 
+  geom_density(show.legend = FALSE, alpha = 0.5) + 
+  geom_histogram(col = "black", fill = "lightgrey",
+                 alpha = 0.5,
+                 aes(y = ..density..)) + 
+  facet_wrap(~term, scales = "free") + 
+  scale_fill_brewer(palette = "Set1") + 
+  theme_minimal() + 
+  labs(y = NULL, x = "Estimate")
+```
+

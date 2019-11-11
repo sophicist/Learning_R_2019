@@ -1,0 +1,109 @@
+---
+title: "Logistic Regression and Classification"
+author: "Kamau Kamau"
+date: "25/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,warning = F,message =F)
+```
+
+```{r}
+library(glmx)
+data("BeetleMortality")
+as_tibble(BeetleMortality)
+
+#  the proportion of beetles killed as a function of the dosage
+
+BeetleMortality$prop_died <- BeetleMortality$died/BeetleMortality$n
+ggplot(BeetleMortality,aes(dose,prop_died)) + geom_point()# shape is non linear
+```
+
+# The titanic -  predicting how many people survived (using Logit - binomial functions)
+
+```{r}
+library(titanic)
+as_tibble(titanic::titanic_train)
+titanic.glm <- glm(Survived ~ Age + Sex+Age:Sex, family = binomial(), titanic_train)# logistic regresion
+summary(titanic.glm)
+```
+
+# Cancer cases - predicting count (using Posissons)
+
+```{r}
+library(readxl)
+df <- read_excel("C:/Users/Maria/Documents/R Learnin g/Statistical Modelling/Book1.xlsx")
+head(df)
+df.poiss <- glm(cases ~ city + age.range + offset(log(n)), family = poisson(link = "log"), data = df)# offset demands that there is a link btwn size of ppn and cancer cases
+summary(df.poiss)
+```
+
+# Linear Discriminant Analysis
+
+```{r}
+library(MASS)
+iris  <- as.tibble(iris)
+head(iris)
+# VISUALIZE THE DATA
+ggplot(iris, aes(Sepal.Length, Sepal.Width, col = Species)) + 
+  geom_point()
+
+# fit the LDA
+iris.lda  <- lda(Species ~ Sepal.Length + Sepal.Width, data = iris)
+iris.lda
+# Grids
+sepal.grid  <- expand.grid(Sepal.Length = seq(4,8,length = 100), 
+            Sepal.Width = seq(2,4.5,length = 100))
+sepal.grid  <- as.tibble(sepal.grid)
+sepal.grid
+# predict for each point on the grid
+sepal.grid$Species  <- predict(iris.lda,sepal.grid)$class
+sepal.grid
+# plot the  grid
+ggplot(sepal.grid, aes(Sepal.Length, Sepal.Width, fill = Species)) + 
+  geom_tile(alpha = 0.2) + 
+  geom_point(data = iris, aes(col = Species, fill = NA))
+```
+
+# Check the AIC and BIC for regression
+
+```{r}
+mtcars.lm <- lm(mpg ~ disp, data=mtcars)
+summary(mtcars.lm)
+broom::glance(mtcars.lm) # AIC is 170
+# Add more values and test the AIC
+mtcars.lm <- lm(mpg ~ disp + wt, data=mtcars)
+broom::glance(mtcars.lm)
+# The AIC
+mtcars.lm <- lm(mpg ~ disp + wt + hp, data=mtcars)
+broom::glance(mtcars.lm)
+# Even more
+mtcars.lm <- lm(mpg ~ disp + wt + hp + cyl, data=mtcars)
+broom::glance(mtcars.lm)
+# Too many
+mtcars.lm <- lm(mpg ~ disp + wt + hp + cyl + gear, data=mtcars)
+broom::glance(mtcars.lm)
+```
+
+# stepwise Regression
+
+```{r}
+# start with the null regression (just the intercept term)
+lm.null <- lm(mpg ~ 1, data=mtcars)
+summary(lm.null)
+AIC(lm.null)# the AIC for this model
+BIC(lm.null)# Bic for the model
+step(lm.null, scope=list(upper=lm(mpg ~ ., data=mtcars)), direction="forward")# use the step regression to automate the process
+#k =log(n) to specify use of BIC
+
+# Propagate backwards
+lm.full <- lm(mpg ~ ., data=mtcars)
+step(lm.full, scope=list(lower=lm.null), direction="backward")
+
+# Bidirectional Propagation
+lm.mtcars <- lm(mpg ~ disp + cyl + qsec, data=mtcars)
+step(lm.mtcars, scope=list(upper=lm.full,lower=lm.null), direction="both")
+```
+
+

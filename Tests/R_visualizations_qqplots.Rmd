@@ -1,0 +1,48 @@
+---
+title: "Test1 EDX"
+author: "John Kamau"
+date: "21/09/2019"
+output: html_document
+---
+
+```{r}
+imp <- read.csv("~/Coursera_EDX/india-trade-data/2018-2010_export.csv")
+imp <-imp$value
+```
+```{r}
+names(imp)
+dim(imp)
+#imp %>% ggplot(aes(x =value))+geom_histogram()
+
+y =mean(imp,na.rm = T)
+x =sd(imp,na.rm =T)
+x
+y
+qnorm(220,y,x)
+p<-0.1:1
+theor <- qnorm(p,mean =y,sd =x)
+act <-quantile(imp,p,na.rm = T)
+
+plot(theor,act)
+abline(0,1)
+```
+
+
+```{r}
+library(MASS)
+head(faithful)
+hist(faithful$eruptions)
+P<-seq(0.05,0.95,0.05)
+h <-quantile(faithful$waiting,P)
+j<-qnorm(P,mean =mean(faithful$waiting),sd = sd(faithful$waiting))
+plot(h,j)
+abline(0,1)
+```
+```{r}
+library(dslabs)
+data(heights)
+library(HistData)
+data(Galton)
+```
+
+

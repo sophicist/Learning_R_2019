@@ -1,0 +1,48 @@
+---
+title: "Cross validation and model selection"
+author: "Kamau Kamau"
+date: "29/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message = FALSE,warning = FALSE)
+```
+
+# cross validation
+
+```{r}
+library(modelr)
+data(mpg)
+head(mpg)
+cv  <- crossv_kfold(mpg, k = 5)
+cv
+# use map to fit our k folds
+
+models1  <- map(cv$train, ~lm(hwy ~ displ, data = .))
+models2  <- map(cv$train, ~lm(hwy ~ displ + drv, data = .))
+
+get_pred  <- function(model, test_data){
+  data  <- as.data.frame(test_data)
+  pred  <- add_predictions(data, model)
+  return(pred)
+}
+pred1  <- map2_df(models1, cv$test, get_pred, .id = "Run")
+pred2  <- map2_df(models2, cv$test, get_pred, .id = "Run")
+head(pred1)
+MSE1  <- pred1 %>% group_by(Run) %>% 
+  summarise(MSE = mean( (hwy - pred)^2))
+MSE1
+MSE2  <- pred2 %>% group_by(Run) %>% 
+  summarise(MSE = mean( (hwy - pred)^2))
+MSE2
+mean(MSE1$MSE)
+mean(MSE2$MSE)
+```
+
+```{r}
+N<- df %>% group_by(country) %>% nest()
+map()
+
+```
+

@@ -1,0 +1,77 @@
+---
+title: 'Project 1 : Titanic'
+author: "Kamau Kamau"
+date: "15/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,messages =F,warning  = F)
+options(digits = 3)
+```
+
+# Titanic dataset
+
+```{r}
+library(tidyverse)
+library(titanic)
+titanic <- titanic_train %>%
+    select(Survived, Pclass, Sex, Age, SibSp, Parch, Fare) %>%
+    mutate(Survived = factor(Survived),
+           Pclass = factor(Pclass),
+           Sex = factor(Sex))
+head(titanic)
+```
+
+```{r}
+
+titanic %>% ggplot(aes(x =Age,color =Sex))+geom_density()
+```
+
+# MAke a QQ Plot
+
+```{r}
+params <- titanic %>%
+    filter(!is.na(Age)) %>%
+    summarize(mean = mean(Age), sd = sd(Age))
+P<-seq(0.05,0.95,0.05)
+theoretic = qnorm(P,mean =params$mean,sd =params$sd)
+actual = quantile(titanic$Age,P,na.rm =T)
+df <-data.frame(x =theoretic,y=actual)
+ggplot(df,aes(x =x,y =y))+geom_point()+ geom_abline()
+
+plot(theoretic,actual)
+abline(0,1)
+```
+```{r}
+head(titanic)
+library(reshape2)
+u <-melt(titanic[,c("Sex","Survived")])
+
+u %>% ggplot(aes(x =Survived,fill =Sex))+geom_bar()
+```
+
+```{r}
+head(titanic)
+library(data.table)
+setDT(titanic)
+titanic[,Ages:=ifelse(Age<9,"0-8",ifelse(Age<9,NA,ifelse(Age<19,"10-18",ifelse(Age<31,"18-30",ifelse(Age<51,"30-50",ifelse(Age<71,"50-70",70-80))))))]
+head(titanic)
+titanic %>%drop_na() %>%  ggplot(aes(x =Age,fill =Survived))+geom_density(alpha =0.1)+facet_wrap(~Ages)
+```
+
+```{r}
+titanic %>% filter(Fare>0) %>% ggplot(aes(y =Fare,fill =Survived,x =Survived))+geom_boxplot()+scale_y_log10()+geom_point(position ="jitter",alpha =0.2)
+```
+
+```{r}
+titanic %>% ggplot(aes(x =Pclass,fill = Survived))+geom_bar()
+titanic %>% ggplot(aes(x =Pclass,fill = Survived))+geom_bar(position = position_fill())
+titanic %>% ggplot(aes(x =Survived,fill = Pclass))+geom_bar(position = position_fill())
+head(titanic)
+```
+
+```{r}
+titanic %>% ggplot(aes(x =Age,fill =Survived,))+geom_density(alpha =0.2)+facet_grid(Pclass~Sex)
+```
+
